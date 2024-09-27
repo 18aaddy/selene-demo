@@ -1,9 +1,11 @@
 package rpc
 
+
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
