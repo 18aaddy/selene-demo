@@ -4,6 +4,7 @@ package consensus
 // uses rpc
 // uses config for networks
 // uses common for datatypes
+
 import (
 	"bytes"
 	"encoding/hex"
@@ -31,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/pkg/errors"
+	bls "github.com/protolambda/bls12-381-util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	bls "github.com/protolambda/bls12-381-util"
 	bls "github.com/protolambda/bls12-381-util"
@@ -329,7 +331,8 @@ func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionP
 		return nil, err
 	}
 
-	blockHash, err := utils.TreeHashRoot(block.ToBytes())
+	block := <-blockChan
+	Gethblock, err := beacon.BlockFromJSON("capella", block.Hash)
 	if err != nil {
 		return nil, err
 	}
@@ -337,8 +340,7 @@ func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionP
 	latestSlot := in.Store.OptimisticHeader.Slot
 	finalizedSlot := in.Store.FinalizedHeader.Slot
 
-	var verifiedBlockHash []byte
-	var errGettingBlockHash error
+	var verifiedBlockHash geth.Hash
 	if *slot == latestSlot {
 		verifiedBlockHash = toGethHeader(&in.Store.OptimisticHeader).Hash()
 	} else if *slot == finalizedSlot {
@@ -964,7 +966,7 @@ func verifySyncCommitteeSignature(
 	
 
 	return utils.FastAggregateVerify(collectedPks, signingRoot[:], &sig)
-	
+
 }
 
 func ComputeCommitteeSignRoot(header *beacon.Header, fork consensus_core.Bytes32) consensus_core.Bytes32 {
@@ -1202,6 +1204,6 @@ func toGethSyncCommittee(committee *consensus_core.SyncCommittee) *beacon.Serial
 	for i, key := range jsoncommittee.Pubkeys {
 		copy(s[i*48:], key[:])
 	}
-copy(s[512*48:], jsoncommittee.Aggregate[:])
+	copy(s[512*48:], jsoncommittee.Aggregate[:])
 	return &s
 }
