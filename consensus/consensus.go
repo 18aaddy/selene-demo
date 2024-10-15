@@ -4,6 +4,7 @@ package consensus
 // uses rpc
 // uses config for networks
 // uses common for datatypes
+
 import (
 	"bytes"
 	"encoding/hex"
@@ -21,14 +22,18 @@ import (
 	"github.com/BlocSoc-iitr/selene/consensus/consensus_core"
 	"github.com/BlocSoc-iitr/selene/consensus/rpc"
 
+
 	"github.com/BlocSoc-iitr/selene/utils"
 	beacon "github.com/ethereum/go-ethereum/beacon/types"
+	beacon "github.com/ethereum/go-ethereum/beacon/types"
 	geth "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/pkg/errors"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	bls "github.com/protolambda/bls12-381-util"
 	bls "github.com/protolambda/bls12-381-util"
 )
 
@@ -208,6 +213,30 @@ func sync_fallback(inner *Inner, fallback *string) error {
 	return <-errorChan
 }
 
+	// Create a buffered channel to receive any errors from the goroutine
+	errorChan := make(chan error, 1)
+
+	go func() {
+		// Attempt to fetch the latest checkpoint from the API
+		cf, err := (&checkpoints.CheckpointFallback{}).FetchLatestCheckpointFromApi(*fallback)
+		if err != nil {
+
+			errorChan <- err
+			return
+		}
+
+		if err := inner.sync(cf); err != nil {
+
+			errorChan <- err
+			return
+		}
+
+		errorChan <- nil
+	}()
+
+	return <-errorChan
+}
+
 func sync_all_fallback(inner *Inner, chainID uint64) error {
 	var n config.Network
 	network, err := n.ChainID(chainID)
@@ -300,8 +329,7 @@ func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionP
 		return nil, err
 	}
 
-	block := <-blockChan
-	Gethblock, err := beacon.BlockFromJSON("capella", block.Hash)
+	blockHash, err := utils.TreeHashRoot(block.Body.ToBytes())
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +337,9 @@ func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionP
 	latestSlot := in.Store.OptimisticHeader.Slot
 	finalizedSlot := in.Store.FinalizedHeader.Slot
 
-	var verifiedBlockHash geth.Hash
+	var verifiedBlockHash []byte
+	var errGettingBlockHash error
+
 	if *slot == latestSlot {
 		verifiedBlockHash = toGethHeader(&in.Store.OptimisticHeader).Hash()
 	} else if *slot == finalizedSlot {
@@ -932,8 +962,7 @@ func verifySyncCommitteeSignature(
 		return false
 	}
 
-	return utils.FastAggregateVerify(collectedPks, signingRoot[:], &sig)
-
+	return utils.IsAggregateValid(*signature, signingRoot, g2Points)
 }
 
 func ComputeCommitteeSignRoot(header *beacon.Header, fork consensus_core.Bytes32) consensus_core.Bytes32 {
@@ -1138,37 +1167,4 @@ func SomeGasPrice(gasFeeCap, gasTipCap *big.Int, baseFeePerGas uint64) *big.Int 
 		return alternativeGasPrice
 	}
 	return maxGasPrice
-}
-
-func toGethHeader(header *consensus_core.Header) *beacon.Header {
-	return &beacon.Header{
-		Slot:          header.Slot,
-		ProposerIndex: header.ProposerIndex,
-		ParentRoot:    [32]byte(header.ParentRoot),
-		StateRoot:     [32]byte(header.StateRoot),
-		BodyRoot:      [32]byte(header.BodyRoot),
-	}
-}
-
-type jsonSyncCommittee struct {
-	Pubkeys   []hexutil.Bytes
-	Aggregate hexutil.Bytes
-}
-
-func toGethSyncCommittee(committee *consensus_core.SyncCommittee) *beacon.SerializedSyncCommittee {
-	jsoncommittee := &jsonSyncCommittee{
-		Aggregate: committee.AggregatePubkey[:],
-	}
-
-	for _, pubkey := range committee.Pubkeys {
-		jsoncommittee.Pubkeys = append(jsoncommittee.Pubkeys, pubkey[:])
-	}
-
-	var s beacon.SerializedSyncCommittee
-
-	for i, key := range jsoncommittee.Pubkeys {
-		copy(s[i*48:], key[:])
-	}
-	copy(s[512*48:], jsoncommittee.Aggregate[:])
-	return &s
 }
