@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	bls "github.com/protolambda/bls12-381-util"
 	bls "github.com/protolambda/bls12-381-util"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 // Error definitions
