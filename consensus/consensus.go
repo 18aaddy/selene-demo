@@ -4,7 +4,6 @@ package consensus
 // uses rpc
 // uses config for networks
 // uses common for datatypes
-
 import (
 	"bytes"
 	"encoding/hex"
@@ -590,6 +589,7 @@ func (in *Inner) sync(checkpoint [32]byte) error {
 		// Apply updates
 		for _, update := range updates {
 			if err := in.verify_update(&update); err != nil {
+
 				errorChan <- err
 				return
 			}
