@@ -1,11 +1,5 @@
 package consensus_core
 
-import (
-	"bytes"
-
-	"github.com/ugorji/go/codec"
-)
-
 type Transaction = [1073741824]byte
 type Bytes32 [32]byte
 type BLSPubKey [48]byte

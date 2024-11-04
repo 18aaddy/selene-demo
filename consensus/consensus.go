@@ -21,21 +21,14 @@ import (
 	"github.com/BlocSoc-iitr/selene/consensus/consensus_core"
 	"github.com/BlocSoc-iitr/selene/consensus/rpc"
 
-
 	"github.com/BlocSoc-iitr/selene/utils"
 	beacon "github.com/ethereum/go-ethereum/beacon/types"
-	beacon "github.com/ethereum/go-ethereum/beacon/types"
 	geth "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/pkg/errors"
 	bls "github.com/protolambda/bls12-381-util"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	bls "github.com/protolambda/bls12-381-util"
-	bls "github.com/protolambda/bls12-381-util"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 // Error definitions
@@ -67,10 +60,11 @@ type GenericUpdate struct {
 	FinalizedHeader         consensus_core.Header
 	FinalityBranch          []consensus_core.Bytes32
 }
-
+// The consensus client fields are updated because state takes chan *common.Block,
+// not common.Block
 type ConsensusClient struct {
-	BlockRecv          *common.Block
-	FinalizedBlockRecv *common.Block
+	BlockRecv          chan *common.Block
+	FinalizedBlockRecv chan *common.Block
 	CheckpointRecv     *[]byte
 	genesisTime        uint64
 	db                 Database
@@ -80,7 +74,7 @@ type Inner struct {
 	RPC                rpc.ConsensusRpc
 	Store              LightClientStore
 	lastCheckpoint     *[]byte
-	blockSend          chan common.Block
+	blockSend          chan *common.Block
 	finalizedBlockSend chan *common.Block
 	checkpointSend     chan *[]byte
 	Config             *config.Config
@@ -95,22 +89,33 @@ type LightClientStore struct {
 }
 
 func (con ConsensusClient) New(rpc *string, config config.Config) ConsensusClient {
-	blockSend := make(chan common.Block, 256)
+	blockSend := make(chan *common.Block, 256)
 	finalizedBlockSend := make(chan *common.Block)
 	checkpointSend := make(chan *[]byte)
-
-	db, err := con.db.New(&config)
+	// Here the initialisation of database was wrong as it was pointing to an interface,
+	// not a types that implements the interface. This resulted in an invalid address error
+	_db, err := (&ConfigDB{}).New(&config)
 	if err != nil {
 		panic(err)
 	}
-
+	// Doing this makes the db variable a concrete type (ConfigDB here)
+	// It can also be switched to FileDB if needed
+	db, ok := _db.(*ConfigDB)
+	if !ok {
+		panic(errors.New("Expected ConfigDB instance"))
+	}
 	var initialCheckpoint [32]byte
 
+	// There was a problem in this assignment initially as it was setting the checkpoint
+	// to db.LoadCheckpoint() when the user inputed a checkpoint. This updated one is 
+	// according to Helios.
 	if config.Checkpoint != nil {
+		initialCheckpoint = *config.Checkpoint
+	} else {
 		initialNewCheckpoint, errorWhileLoadingCheckpoint := db.LoadCheckpoint()
 		copy(initialCheckpoint[:], initialNewCheckpoint)
 		if errorWhileLoadingCheckpoint != nil {
-			log.Printf("error while loading checkpoint: %v", errorWhileLoadingCheckpoint)
+			initialCheckpoint = config.DefaultCheckpoint
 		}
 	}
 	if initialCheckpoint == [32]byte{} {
@@ -159,13 +164,11 @@ func (con ConsensusClient) New(rpc *string, config config.Config) ConsensusClien
 		}
 	}()
 
-	blocksReceived := <-blockSend
-	finalizedBlocksReceived := <-finalizedBlockSend
 	checkpointsReceived := <-checkpointSend
 
 	return ConsensusClient{
-		BlockRecv:          &blocksReceived,
-		FinalizedBlockRecv: finalizedBlocksReceived,
+		BlockRecv:          blockSend,
+		FinalizedBlockRecv: finalizedBlockSend,
 		CheckpointRecv:     checkpointsReceived,
 		genesisTime:        config.Chain.GenesisTime,
 		db:                 db,
@@ -214,54 +217,6 @@ func sync_fallback(inner *Inner, fallback *string) error {
 	return <-errorChan
 }
 
-	// Create a buffered channel to receive any errors from the goroutine
-	errorChan := make(chan error, 1)
-
-	go func() {
-		// Attempt to fetch the latest checkpoint from the API
-		cf, err := (&checkpoints.CheckpointFallback{}).FetchLatestCheckpointFromApi(*fallback)
-		if err != nil {
-
-			errorChan <- err
-			return
-		}
-
-		if err := inner.sync(cf); err != nil {
-
-			errorChan <- err
-			return
-		}
-
-		errorChan <- nil
-	}()
-
-	return <-errorChan
-}
-
-	// Create a buffered channel to receive any errors from the goroutine
-	errorChan := make(chan error, 1)
-
-	go func() {
-		// Attempt to fetch the latest checkpoint from the API
-		cf, err := (&checkpoints.CheckpointFallback{}).FetchLatestCheckpointFromApi(*fallback)
-		if err != nil {
-
-			errorChan <- err
-			return
-		}
-
-		if err := inner.sync(cf); err != nil {
-
-			errorChan <- err
-			return
-		}
-
-		errorChan <- nil
-	}()
-
-	return <-errorChan
-}
-
 func sync_all_fallback(inner *Inner, chainID uint64) error {
 	var n config.Network
 	network, err := n.ChainID(chainID)
@@ -271,35 +226,15 @@ func sync_all_fallback(inner *Inner, chainID uint64) error {
 	errorChan := make(chan error, 1)
 
 	go func() {
-	errorChan := make(chan error, 1)
 
-	go func() {
-
-			ch := checkpoints.CheckpointFallback{}
+		ch := checkpoints.CheckpointFallback{}
 
 		checkpointFallback, errWhileCheckpoint := ch.Build()
 		if errWhileCheckpoint != nil {
 			errorChan <- errWhileCheckpoint
 			return
 		}
-		checkpointFallback, errWhileCheckpoint := ch.Build()
-		if errWhileCheckpoint != nil {
-			errorChan <- errWhileCheckpoint
-			return
-		}
 
-		chainId := network.Chain.ChainID
-		var networkName config.Network
-		if chainId == 1 {
-			networkName = config.MAINNET
-		} else if chainId == 5 {
-			networkName = config.GOERLI
-		} else if chainId == 11155111 {
-			networkName = config.SEPOLIA
-		} else {
-			errorChan <- errors.New("chain id not recognized")
-			return
-		}
 		chainId := network.Chain.ChainID
 		var networkName config.Network
 		if chainId == 1 {
@@ -326,7 +261,7 @@ func sync_all_fallback(inner *Inner, chainID uint64) error {
 	return <-errorChan
 }
 
-func (in *Inner) New(rpcURL string, blockSend chan common.Block, finalizedBlockSend chan *common.Block, checkpointSend chan *[]byte, config *config.Config) *Inner {
+func (in *Inner) New(rpcURL string, blockSend chan *common.Block, finalizedBlockSend chan *common.Block, checkpointSend chan *[]byte, config *config.Config) *Inner {
 	rpcClient := rpc.NewConsensusRpc(rpcURL)
 
 	return &Inner{
@@ -356,36 +291,7 @@ func (in *Inner) Check_rpc() error {
 		errorChan <- nil
 	}()
 	return <-errorChan
-	errorChan := make(chan error, 1)
-
-	go func() {
-		chainID, err := in.RPC.ChainId()
-		if err != nil {
-			errorChan <- err
-			return
-		}
-		if chainID != in.Config.Chain.ChainID {
-			errorChan <- ErrIncorrectRpcNetwork
-			return
-		}
-		errorChan <- nil
-	}()
-	return <-errorChan
 }
-func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionPayload, error) {
-	errorChan := make(chan error, 1)
-	blockChan := make(chan consensus_core.BeaconBlock, 1)
-	go func() {
-		var err error
-		block, err := in.RPC.GetBlock(*slot)
-		if err != nil {
-			errorChan <- err
-		}
-		errorChan <- nil
-		blockChan <- block
-	}()
-
-	if err := <-errorChan; err != nil {
 func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionPayload, error) {
 	errorChan := make(chan error, 1)
 	blockChan := make(chan consensus_core.BeaconBlock, 1)
@@ -403,7 +309,6 @@ func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionP
 		return nil, err
 	}
 
-	block := <-blockChan
 	block := <-blockChan
 	Gethblock, err := beacon.BlockFromJSON("capella", block.Hash)
 	if err != nil {
@@ -431,7 +336,6 @@ func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionP
 	return &payload, nil
 }
 
-func (in *Inner) Get_payloads(startSlot, endSlot uint64) ([]interface{}, error) {
 func (in *Inner) Get_payloads(startSlot, endSlot uint64) ([]interface{}, error) {
 	var payloads []interface{}
 
@@ -505,22 +409,7 @@ func (in *Inner) advance() error {
 	}()
 	if ErrorChan != nil {
 		return <-ErrorChan
-	ErrorChan := make(chan error, 1)
-	finalityChan := make(chan consensus_core.FinalityUpdate, 1)
-
-	go func() {
-		finalityUpdate, err := in.RPC.GetFinalityUpdate()
-		if err != nil {
-			ErrorChan <- err
-			return
-		}
-		finalityChan <- finalityUpdate
-		ErrorChan <- nil
-	}()
-	if ErrorChan != nil {
-		return <-ErrorChan
 	}
-	finalityUpdate := <-finalityChan
 	finalityUpdate := <-finalityChan
 	if err := in.verify_finality_update(&finalityUpdate); err != nil {
 		return err
@@ -566,17 +455,8 @@ func (in *Inner) sync(checkpoint [32]byte) error {
 	// Perform bootstrap with the given checkpoint
 	in.bootstrap(checkpoint)
 
-	
 	currentPeriod := utils.CalcSyncPeriod(in.Store.FinalizedHeader.Slot)
 
-	errorChan := make(chan error, 1)
-	var updates []consensus_core.Update
-	var err error
-	go func() {
-		updates, err = in.RPC.GetUpdates(currentPeriod, MAX_REQUEST_LIGHT_CLIENT_UPDATES)
-		if err != nil {
-			errorChan <- err
-		}
 	errorChan := make(chan error, 1)
 	var updates []consensus_core.Update
 	var err error
@@ -598,9 +478,11 @@ func (in *Inner) sync(checkpoint [32]byte) error {
 
 		finalityUpdate, err := in.RPC.GetFinalityUpdate()
 		if err != nil {
+
 			errorChan <- err
 			return
 		}
+
 		if err := in.verify_finality_update(&finalityUpdate); err != nil {
 			errorChan <- err
 			return
@@ -608,7 +490,6 @@ func (in *Inner) sync(checkpoint [32]byte) error {
 		in.apply_finality_update(&finalityUpdate)
 
 		// Fetch and apply optimistic update
-		// Fetch and apply optimistic update
 
 		optimisticUpdate, err := in.RPC.GetOptimisticUpdate()
 		if err != nil {
@@ -623,23 +504,7 @@ func (in *Inner) sync(checkpoint [32]byte) error {
 		errorChan <- nil
 		log.Printf("consensus client in sync with checkpoint: 0x%s", hex.EncodeToString(checkpoint[:]))
 	}()
-		optimisticUpdate, err := in.RPC.GetOptimisticUpdate()
-		if err != nil {
-			errorChan <- err
-			return
-		}
-		if err := in.verify_optimistic_update(&optimisticUpdate); err != nil {
-			errorChan <- err
-			return
-		}
-		in.apply_optimistic_update(&optimisticUpdate)
-		errorChan <- nil
-		log.Printf("consensus client in sync with checkpoint: 0x%s", hex.EncodeToString(checkpoint[:]))
-	}()
 
-	if err := <-errorChan; err != nil {
-		return err
-	}
 	if err := <-errorChan; err != nil {
 		return err
 	}
@@ -651,14 +516,12 @@ func (in *Inner) send_blocks() error {
 	// Get slot from the optimistic header
 	slot := in.Store.OptimisticHeader.Slot
 	payload, err := in.get_execution_payload(&slot)
-	payload, err := in.get_execution_payload(&slot)
 	if err != nil {
 		return err
 	}
 
 	// Get finalized slot from the finalized header
 	finalizedSlot := in.Store.FinalizedHeader.Slot
-	finalizedPayload, err := in.get_execution_payload(&finalizedSlot)
 	finalizedPayload, err := in.get_execution_payload(&finalizedSlot)
 	if err != nil {
 		return err
@@ -671,7 +534,7 @@ func (in *Inner) send_blocks() error {
 			log.Printf("Error converting payload to block: %v", err)
 			return
 		}
-		in.blockSend <- *block
+		in.blockSend <- block
 	}()
 
 	go func() {
@@ -707,27 +570,14 @@ func (in *Inner) duration_until_next_update() time.Duration {
 func (in *Inner) bootstrap(checkpoint [32]byte) {
 	errorChan := make(chan error, 1)
 	bootstrapChan := make(chan consensus_core.Bootstrap, 1)
-	go func() {	errorChan := make(chan error, 1)
-	bootstrapChan := make(chan consensus_core.Bootstrap, 1)
 	go func() {
-			bootstrap, errInBootstrap := in.RPC.GetBootstrap(checkpoint)
-		
-	
+		bootstrap, errInBootstrap := in.RPC.GetBootstrap(checkpoint)
+
 		if errInBootstrap != nil {
-				log.Printf("failed to fetch bootstrap: %v", errInBootstrap)
+			log.Printf("failed to fetch bootstrap: %v", errInBootstrap)
 			errorChan <- errInBootstrap
-				errorChan <- errInBootstrap
 			return
-			}
-		bootstrapChan <- bootstrap
-		errorChan <- nil
-	}()
-	if err := <-errorChan; err != nil {
-		return
-	}
-	bootstrap := <-bootstrapChan
-
-
+		}
 		bootstrapChan <- bootstrap
 		errorChan <- nil
 	}()
@@ -844,8 +694,7 @@ func (in *Inner) verify_generic_update(update *GenericUpdate, expectedCurrentSlo
 		}
 
 		forkVersion := utils.CalculateForkVersion(&forks, update.SignatureSlot)
-		forkDataRoot := utils.ComputeForkDataRoot(forkVersion, consensus_core.Bytes32(in.Config.Chain.GenesisRoot))
-		
+		forkDataRoot := utils.ComputeForkDataRoot(forkVersion, consensus_core.Bytes32(genesisRoots))
 
 		if !verifySyncCommitteeSignature(syncCommittee.Pubkeys, &update.AttestedHeader, &update.SyncAggregate, forkDataRoot) {
 			return ErrInvalidSignature
@@ -888,7 +737,6 @@ func (in *Inner) verify_optimistic_update(update *consensus_core.OptimisticUpdat
 	return in.verify_generic_update(&genUpdate, in.expected_current_slot(), &in.Store, in.Config.Chain.GenesisRoot, in.Config.Forks)
 }
 func (in *Inner) apply_generic_update(store *LightClientStore, update *GenericUpdate) *[]byte {
-	committeeBits := getBits(update.SyncAggregate.SyncCommitteeBits[:])
 	committeeBits := getBits(update.SyncAggregate.SyncCommitteeBits[:])
 
 	// Update max active participants
@@ -1093,8 +941,6 @@ func verifySyncCommitteeSignature(
 		return false
 	}
 
-	
-
 	return utils.FastAggregateVerify(collectedPks, signingRoot[:], &sig)
 
 }
@@ -1197,10 +1043,10 @@ func processTransaction(txBytes *[]byte, blockHash consensus_core.Bytes32, block
 	if err != nil {
 		return common.Transaction{}, fmt.Errorf("failed to decode transaction: %v", err)
 	}
-	// Updated due to update in Transaction struct
+
 	tx := common.Transaction{
 		Hash:             txEnvelope.Hash(),
-		Nonce:            hexutil.Uint64(txEnvelope.Nonce()),
+		Nonce:			  hexutil.Uint64(txEnvelope.Nonce()),
 		BlockHash:        geth.BytesToHash(blockHash[:]),
 		BlockNumber:      hexutil.Uint64(*blockNumber),
 		TransactionIndex: hexutil.Uint64(index),
@@ -1210,7 +1056,7 @@ func processTransaction(txBytes *[]byte, blockHash consensus_core.Bytes32, block
 		Gas:              hexutil.Uint64(txEnvelope.Gas()),
 		Input:            txEnvelope.Data(),
 		ChainID:          hexutil.Big(*txEnvelope.ChainId()),
-		TransactionType:  hexutil.Uint(uint(txEnvelope.Type())),
+		TransactionType:  hexutil.Uint(txEnvelope.Type()),
 	}
 
 	// Handle signature and transaction type logic
@@ -1234,7 +1080,6 @@ func processTransaction(txBytes *[]byte, blockHash consensus_core.Bytes32, block
 	case types.AccessListTxType:
 		tx.AccessList = txEnvelope.AccessList()
 	case types.DynamicFeeTxType:
-		// Update due to update in Transaction struct
 		tx.MaxFeePerGas = hexutil.Big(*new(big.Int).Set(txEnvelope.GasFeeCap()))
 		tx.MaxPriorityFeePerGas = hexutil.Big(*new(big.Int).Set(txEnvelope.GasTipCap()))
 	case types.BlobTxType:
@@ -1272,11 +1117,9 @@ func popCount(b byte) int {
 
 // DecodeTxEnvelope takes the transaction bytes and decodes them into a transaction envelope (Ethereum transaction)
 func DecodeTxEnvelope(txBytes *[]byte) (*types.Transaction, error) {
-func DecodeTxEnvelope(txBytes *[]byte) (*types.Transaction, error) {
 	// Create an empty transaction object
 	var tx types.Transaction
 
-	var txBytesForUnmarshal []byte = *txBytes
 	var txBytesForUnmarshal []byte = *txBytes
 	// Unmarshal the RLP-encoded transaction bytes into the transaction object
 	err := tx.UnmarshalBinary(txBytesForUnmarshal)
