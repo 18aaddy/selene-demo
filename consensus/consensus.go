@@ -4,7 +4,6 @@ package consensus
 // uses rpc
 // uses config for networks
 // uses common for datatypes
-
 import (
 	"bytes"
 	"encoding/hex"
@@ -329,7 +328,7 @@ func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionP
 		return nil, err
 	}
 
-	blockHash, err := utils.TreeHashRoot(block.Body.ToBytes())
+	blockHash, err := utils.TreeHashRoot(block.ToBytes())
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +338,6 @@ func (in *Inner) get_execution_payload(slot *uint64) (*consensus_core.ExecutionP
 
 	var verifiedBlockHash []byte
 	var errGettingBlockHash error
-
 	if *slot == latestSlot {
 		verifiedBlockHash = toGethHeader(&in.Store.OptimisticHeader).Hash()
 	} else if *slot == finalizedSlot {
@@ -962,7 +960,10 @@ func verifySyncCommitteeSignature(
 		return false
 	}
 
-	return utils.IsAggregateValid(*signature, signingRoot, g2Points)
+	
+
+	return utils.FastAggregateVerify(collectedPks, signingRoot[:], &sig)
+	
 }
 
 func ComputeCommitteeSignRoot(header *beacon.Header, fork consensus_core.Bytes32) consensus_core.Bytes32 {
@@ -1138,9 +1139,11 @@ func popCount(b byte) int {
 
 // DecodeTxEnvelope takes the transaction bytes and decodes them into a transaction envelope (Ethereum transaction)
 func DecodeTxEnvelope(txBytes *[]byte) (*types.Transaction, error) {
+func DecodeTxEnvelope(txBytes *[]byte) (*types.Transaction, error) {
 	// Create an empty transaction object
 	var tx types.Transaction
 
+	var txBytesForUnmarshal []byte = *txBytes
 	var txBytesForUnmarshal []byte = *txBytes
 	// Unmarshal the RLP-encoded transaction bytes into the transaction object
 	err := tx.UnmarshalBinary(txBytesForUnmarshal)
@@ -1167,4 +1170,37 @@ func SomeGasPrice(gasFeeCap, gasTipCap *big.Int, baseFeePerGas uint64) *big.Int 
 		return alternativeGasPrice
 	}
 	return maxGasPrice
+}
+
+func toGethHeader(header *consensus_core.Header) *beacon.Header {
+	return &beacon.Header{
+		Slot:          header.Slot,
+		ProposerIndex: header.ProposerIndex,
+		ParentRoot:    [32]byte(header.ParentRoot),
+		StateRoot:     [32]byte(header.StateRoot),
+		BodyRoot:      [32]byte(header.BodyRoot),
+	}
+}
+
+type jsonSyncCommittee struct {
+	Pubkeys   []hexutil.Bytes
+	Aggregate hexutil.Bytes
+}
+
+func toGethSyncCommittee(committee *consensus_core.SyncCommittee) *beacon.SerializedSyncCommittee {
+	jsoncommittee := &jsonSyncCommittee{
+		Aggregate: committee.AggregatePubkey[:],
+	}
+
+	for _, pubkey := range committee.Pubkeys {
+		jsoncommittee.Pubkeys = append(jsoncommittee.Pubkeys, pubkey[:])
+	}
+
+	var s beacon.SerializedSyncCommittee
+
+	for i, key := range jsoncommittee.Pubkeys {
+		copy(s[i*48:], key[:])
+	}
+copy(s[512*48:], jsoncommittee.Aggregate[:])
+	return &s
 }
