@@ -9,7 +9,8 @@ import (
 
 	seleneCommon "github.com/BlocSoc-iitr/selene/common"
 	"github.com/BlocSoc-iitr/selene/config"
-	"github.com/BlocSoc-iitr/selene/utils"
+
+	// "github.com/BlocSoc-iitr/selene/utils"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -23,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	// "time"
+	"encoding/hex"
 	"encoding/json"
 	// 	"fmt"
 	// 	"log"
@@ -774,7 +776,8 @@ func NewNode(config *config.Config, state *execution.State) (*Node, error) {
 	// Initialize State
 	// state := execution.NewState(256, blockRecv, finalizedBlockRecv)
 	// Initialize ExecutionClient
-	execution, err := (&execution.ExecutionClient{}).New(executionRPC, state)
+	var execution *execution.ExecutionClient
+	execution, err := execution.New(executionRPC, state)
 	if err != nil {
 		return nil, errors.New("ExecutionClient creation error")
 	}
@@ -840,7 +843,7 @@ func (n *Node) GetBalance(address seleneCommon.Address, tag seleneCommon.BlockTa
     errorChan := make(chan error)
 
     go func() {
-        n.CheckBlocktagAge(tag)
+        // n.CheckBlocktagAge(tag)
         account, err := n.Execution.GetAccount(&address, nil, tag)
         if err != nil {
             errorChan <- err
@@ -1389,11 +1392,11 @@ func (n *Node) GetCoinbase() ([20]byte, error) {
             blockChan <- &block
         }()
 
-        if headErr := <-headErrChan; headErr != nil {
-            resultChan <- [20]byte{}
-            errorChan <- headErr
-            return
-        }
+        // if headErr := <-headErrChan; headErr != nil {
+        //     resultChan <- [20]byte{}
+        //     errorChan <- headErr
+        //     return
+        // }
 
         block := <-blockChan
         resultChan <- block.Miner.Addr
@@ -2248,7 +2251,7 @@ func rpcHandler(w http.ResponseWriter, r *http.Request, rpc *RpcInner) {
 			addrStr := req.Params[0].(string)
 			var addressStruct seleneCommon.Address
 			// addrStr := address["Addr"].(string)
-			addressCommon, err := utils.Hex_str_to_bytes(addrStr)
+			addressCommon := common.Hex2Bytes(addrStr[2:])
 			if err != nil {
 				errorChan <- err
 				return
@@ -2821,7 +2824,7 @@ func rpcHandler(w http.ResponseWriter, r *http.Request, rpc *RpcInner) {
 
 		select {
 		case coinbaseAddress := <-resultChan:
-			writeRPCResponse(w, req.ID, coinbaseAddress, "")
+			writeRPCResponse(w, req.ID, "0x" + hex.EncodeToString(coinbaseAddress[:]), "")
 		case err := <-errorChan:
 			writeRPCResponse(w, req.ID, nil, err.Error())
 		}

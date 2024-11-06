@@ -33,7 +33,7 @@ type Block struct {
 	Size             uint64
 	StateRoot        [32]byte
 	Timestamp        uint64
-	TotalDifficulty  uint64
+	TotalDifficulty  uint256.Int
 	Transactions     Transactions
 	TransactionsRoot [32]byte
 	Uncles           [][32]byte

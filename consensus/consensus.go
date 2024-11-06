@@ -1023,7 +1023,7 @@ func PayloadToBlock(value *consensus_core.ExecutionPayload) (*common.Block, erro
 		ReceiptsRoot:     value.ReceiptsRoot,
 		StateRoot:        value.StateRoot,
 		Timestamp:        value.Timestamp,
-		TotalDifficulty:  uint64(0),
+		TotalDifficulty:  *uint256.NewInt(0),
 		Transactions:     common.Transactions{Full: txs},
 		MixHash:          value.PrevRandao,
 		Nonce:            emptyNonce,

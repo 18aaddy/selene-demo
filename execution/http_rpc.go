@@ -50,7 +50,7 @@ func (h *HttpRpc) GetProof(address *seleneCommon.Address, slots *[]common.Hash, 
 			slotHex = append(slotHex, slot.Hex())
 		}
 	}
-	if len(*slots) == 0 {
+	if slots == nil {
 		slotHex = []string{}
 	}
 	go func() {

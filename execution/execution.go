@@ -64,8 +64,11 @@ func (e *ExecutionClient) CheckRpc(chainID uint64) error {
 
 // GetAccount retrieves the account information
 func (e *ExecutionClient) GetAccount(address *seleneCommon.Address, slots *[]common.Hash, tag seleneCommon.BlockTag) (Account, error) { //Account from execution/types.go
-	block := e.state.GetBlock(tag)
+	block := e.state.blocks[tag.Number]
 	// Error Handling
+	if block == nil {
+		return Account{}, errors.New("block was not found in state")
+	}
 	proof, err := e.Rpc.GetProof(address, slots, block.Number) 
 	// fmt.Printf("%v",proof);
 	if err != nil {

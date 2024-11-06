@@ -44,7 +44,7 @@ func main() {
 	// config := config.Config{}
 	
 	go func() {
-		UpdateState(ctx, cancel, state)
+		UpdateState(ctx, cancel, state, blockChan)
 	}()
 
 	time.Sleep(10 * time.Second)
@@ -116,7 +116,7 @@ func main() {
 	select{}
 }
 
-func UpdateState(ctx context.Context, cancel context.CancelFunc, state *execution.State) {
+func UpdateState(ctx context.Context, cancel context.CancelFunc, state *execution.State, blockChan chan *common.Block) {
 	// ctx, cancel := context.WithCancel(context.Background())
 	rpc := "https://eth-mainnet.g.alchemy.com/v2/j28GcevSYukh-GvSeBOYcwHOfIggF1Gt"
 	defer cancel()
@@ -129,7 +129,7 @@ func UpdateState(ctx context.Context, cancel context.CancelFunc, state *executio
 		fmt.Printf("error in creating execution client: %v", err)
 	}
 	
-	newBlockChan := make(chan *common.Block, 100)
+	// newBlockChan := make(chan *common.Block, 100)
 	go func() {
 		for {
 			select {
@@ -140,7 +140,7 @@ func UpdateState(ctx context.Context, cancel context.CancelFunc, state *executio
 				if latestBlockNumber != nil {
 					lastFetchedBlock = *latestBlockNumber
 				}
-				_, err := execution.FetchBlocksFromRPC(ctx, rpcClient, lastFetchedBlock, newBlockChan)
+				_, err := execution.FetchBlocksFromRPC(ctx, rpcClient, lastFetchedBlock, blockChan)
 				if err != nil {
 					// Handle error
 					fmt.Printf("Error: %v", err)
@@ -154,15 +154,17 @@ func UpdateState(ctx context.Context, cancel context.CancelFunc, state *executio
 	go func() {
 		for {
 			time.Sleep(5 * time.Second)	
-			execution.UpdateState(state, newBlockChan)
+			execution.UpdateState(state, blockChan)
 		}
 	}()
 
 	go func() {
 		for {
-			time.Sleep(5 * time.Second)
+			time.Sleep(10 * time.Second)
 
-			fmt.Println("Most recent block in state: ", state.LatestBlockNumber())
+			fmt.Println("Most recent block in state: ", *(state.LatestBlockNumber()))
+			// block := state.GetBlock(common.BlockTag{Number: 21123710})
+			fmt.Println("Block in state: ", state)
 		}
 	}()
 
