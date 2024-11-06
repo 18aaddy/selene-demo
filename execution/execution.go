@@ -161,7 +161,11 @@ func (e *ExecutionClient) GetBlock(tag seleneCommon.BlockTag, full_tx bool) (sel
 	errChan := make(chan error)
 	go func() {
 		block := e.state.GetBlock(tag)
-		blockChan <- *block
+		if block == nil {
+			blockChan <- seleneCommon.Block{}
+		} else {
+			blockChan <- *block
+		}
 	}()
 	select {
 	case block := <-blockChan:

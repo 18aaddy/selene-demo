@@ -1,9 +1,11 @@
 package execution
 
 import (
+	"fmt"
+	"sync"
+
 	"github.com/BlocSoc-iitr/selene/common"
 	"github.com/holiman/uint256"
-	"sync"
 )
 
 type State struct {
@@ -54,9 +56,9 @@ func (s *State) PushBlock(block *common.Block) {
 		}
 		s.txs[txHash] = loc
 	}
-
+	
 	s.blocks[block.Number] = block
-
+	
 	for len(s.blocks) > int(s.historyLength) {
 		var oldestNumber uint64 = ^uint64(0)
 		for number := range s.blocks {
@@ -66,6 +68,7 @@ func (s *State) PushBlock(block *common.Block) {
 		}
 		s.removeBlock(oldestNumber)
 	}
+	fmt.Println("Pushed block: ", block.Number)
 }
 func (s *State) PushFinalizedBlock(block *common.Block) {
 	s.mu.Lock()
