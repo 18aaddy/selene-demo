@@ -25,7 +25,7 @@ func UpdateState(s *State, blockChan chan *common.Block) {
         }
         
         // s.mu.Lock()
-        fmt.Printf("Processing block number: %v\n", newBlock.Number)
+        // fmt.Printf("Processing block number: %v\n", newBlock.Number)
         s.PushBlock(newBlock)
         // s.mu.Unlock()
     }

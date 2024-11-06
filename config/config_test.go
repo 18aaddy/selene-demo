@@ -38,7 +38,7 @@ func TestMainnetBaseConfig(t *testing.T) {
 	var cliConfig CliConfig
 	var config Config
 
-	config = config.from_file(&path, &network, &cliConfig)
+	config = config.FromFile(&path, &network, &cliConfig)
 
 	mainnetConfig, _ := Mainnet()
 
@@ -77,7 +77,7 @@ func TestConfigFileCreatedSuccessfully(t *testing.T) {
 	var cliConfig CliConfig
 	var config Config
 
-	config = config.from_file(&path, &network, &cliConfig)
+	config = config.FromFile(&path, &network, &cliConfig)
 
 	if config.ConsensusRpc != consensusRpc {
 		t.Errorf("Expected ConsensusRpc to be %s, but got %s", consensusRpc, config.ConsensusRpc)
@@ -109,7 +109,7 @@ func TestCliConfig(t *testing.T) {
 	}
 	var config Config
 
-	config = config.from_file(&path, &network, &cliConfig)
+	config = config.FromFile(&path, &network, &cliConfig)
 
 	if config.ExecutionRpc != *cliConfig.ExecutionRpc {
 		t.Errorf("Expected Execution rpc to be %s, but got %s", *cliConfig.ExecutionRpc, config.ExecutionRpc)
@@ -142,7 +142,7 @@ func TestIfFieldNotInCliDefaultsToTomlThenBaseConfig(t *testing.T) {
 		RpcBindIp:    &rpcBindIp,
 	}
 	var config Config
-	config = config.from_file(&path, &network, &cliConfig)
+	config = config.FromFile(&path, &network, &cliConfig)
 	mainnetConfig, _ := Mainnet()
 
 	// Rpc Port defined in toml file not in cli config
@@ -182,7 +182,7 @@ func createConfigFile(v *viper.Viper) {
 }
 
 // ////////////////////////////////
-// /// to_base_config() tests /////
+// /// ToBaseConfig() tests /////
 // ////////////////////////////////
 func TestReturnsCorrectBaseConfig(t *testing.T) {
 	config := Config{
@@ -198,7 +198,7 @@ func TestReturnsCorrectBaseConfig(t *testing.T) {
 		StrictCheckpointAge:  strictCheckpointAge,
 	}
 
-	baseConfig := config.to_base_config()
+	baseConfig := config.ToBaseConfig()
 
 	if !reflect.DeepEqual(baseConfig.Chain, config.Chain) {
 		t.Errorf("Expected Chain to be %v, got %v", config.Chain, baseConfig.Chain)
@@ -222,7 +222,7 @@ func TestReturnsCorrectDefaultValues(t *testing.T) {
 		StrictCheckpointAge:  strictCheckpointAge,
 	}
 
-	baseConfig := config.to_base_config()
+	baseConfig := config.ToBaseConfig()
 	if baseConfig.MaxCheckpointAge != config.MaxCheckpointAge {
 		t.Errorf("Expected Max Checkpoint age to be %v, got %v", config.MaxCheckpointAge, baseConfig.MaxCheckpointAge)
 	}

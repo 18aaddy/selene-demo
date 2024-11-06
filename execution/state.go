@@ -1,7 +1,7 @@
 package execution
 
 import (
-	"fmt"
+	// "fmt"
 	"sync"
 
 	"github.com/BlocSoc-iitr/selene/common"
@@ -68,7 +68,7 @@ func (s *State) PushBlock(block *common.Block) {
 		}
 		s.removeBlock(oldestNumber)
 	}
-	fmt.Println("Pushed block: ", block.Number)
+	// fmt.Println("Pushed block: ", block.Number)
 }
 func (s *State) PushFinalizedBlock(block *common.Block) {
 	s.mu.Lock()
