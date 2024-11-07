@@ -2573,8 +2573,8 @@ func rpcHandler(w http.ResponseWriter, r *http.Request, rpc *RpcInner) {
 		errorChan := make(chan error)
 
 		go func() {
-			hash := req.Params[0].([32]byte)
-			receipt, err := rpc.GetTransactionReceipt(hash)
+			hash := req.Params[0].(string)
+			receipt, err := rpc.GetTransactionReceipt([32]byte(common.Hex2Bytes(hash[2:])))
 			if err != nil {
 				errorChan <- err
 				return

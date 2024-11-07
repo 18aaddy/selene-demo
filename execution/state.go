@@ -3,14 +3,14 @@ package execution
 import (
 	// "fmt"
 	// "fmt"
-	"sync"
+	// "sync"
 
 	"github.com/BlocSoc-iitr/selene/common"
 	"github.com/holiman/uint256"
 )
 
 type State struct {
-	mu             sync.RWMutex
+	// mu             sync.RWMutex
 	blocks         map[uint64]*common.Block
 	finalizedBlock *common.Block
 	hashes         map[[32]byte]uint64
@@ -47,8 +47,8 @@ func NewState(historyLength uint64, blockChan <-chan *common.Block, finalizedBlo
 	return s
 }
 func (s *State) PushBlock(block *common.Block) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// s.mu.Lock()
+	// defer s.mu.Unlock()
 	s.hashes[block.Hash] = block.Number
 	for i, txHash := range block.Transactions.Hashes {
 		loc := TransactionLocation{
@@ -72,8 +72,8 @@ func (s *State) PushBlock(block *common.Block) {
 	// fmt.Println("Pushed block: ", block.Number)
 }
 func (s *State) PushFinalizedBlock(block *common.Block) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// s.mu.Lock()
+	// defer s.mu.Unlock()
 
 	s.finalizedBlock = block
 
@@ -96,8 +96,8 @@ func (s *State) removeBlock(number uint64) {
 	}
 }
 func (s *State) GetBlock(tag common.BlockTag) *common.Block {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// s.mu.RLock()
+	// defer s.mu.RUnlock()
 
 	if tag.Latest {
 		var latestNumber uint64
@@ -116,8 +116,8 @@ func (s *State) GetBlock(tag common.BlockTag) *common.Block {
 	}
 }
 func (s *State) GetBlockByHash(hash [32]byte) *common.Block {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// s.mu.RLock()
+	// defer s.mu.RUnlock()
 
 	if number, exists := s.hashes[hash]; exists {
 		return s.blocks[number]
@@ -125,8 +125,8 @@ func (s *State) GetBlockByHash(hash [32]byte) *common.Block {
 	return nil
 }
 func (s *State) GetTransaction(hash [32]byte) *common.Transaction {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// s.mu.RLock()
+	// defer s.mu.RUnlock()
 
 	if loc, exists := s.txs[hash]; exists {
 		if block, exists := s.blocks[loc.Block]; exists {
@@ -138,8 +138,8 @@ func (s *State) GetTransaction(hash [32]byte) *common.Transaction {
 	return nil
 }
 func (s *State) GetTransactionByBlockAndIndex(blockHash [32]byte, index uint64) *common.Transaction {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// s.mu.RLock()
+	// defer s.mu.RUnlock()
 
 	if number, exists := s.hashes[blockHash]; exists {
 		if block, exists := s.blocks[number]; exists {
@@ -175,8 +175,8 @@ func (s *State) GetCoinbase(tag common.BlockTag) *common.Address {
 	return nil
 }
 func (s *State) LatestBlockNumber() *uint64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// s.mu.RLock()
+	// defer s.mu.RUnlock()
 
 	var latestNumber uint64
 	for number := range s.blocks {
@@ -190,8 +190,8 @@ func (s *State) LatestBlockNumber() *uint64 {
 	return nil
 }
 func (s *State) OldestBlockNumber() *uint64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// s.mu.RLock()
+	// defer s.mu.RUnlock()
 	var oldestNumber uint64 = ^uint64(0)
 	for number := range s.blocks {
 		if number < oldestNumber {

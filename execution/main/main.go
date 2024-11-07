@@ -158,15 +158,15 @@ func UpdateState(ctx context.Context, cancel context.CancelFunc, state *executio
 		}
 	}()
 
-	go func() {
-		for {
-			time.Sleep(10 * time.Second)
+	// go func() {
+	// 	for {
+	// 		time.Sleep(7 * time.Second)
 
-			fmt.Println("Most recent block in state: ", *(state.LatestBlockNumber()))
-			// block := state.GetBlock(common.BlockTag{Number: 21123710})
-			fmt.Println("Block in state: ", state)
-		}
-	}()
+	// 		fmt.Println("Most recent block in state: ", *(state.LatestBlockNumber()))
+	// 		// block := state.GetBlock(common.BlockTag{Number: 21123710})
+	// 		// fmt.Println("Block in state: ", )
+	// 	}
+	// }()
 
 	// Wait for interrupt signal
     sigChan := make(chan os.Signal, 1)

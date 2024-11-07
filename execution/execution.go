@@ -2,6 +2,7 @@ package execution
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 
@@ -64,7 +65,7 @@ func (e *ExecutionClient) CheckRpc(chainID uint64) error {
 
 // GetAccount retrieves the account information
 func (e *ExecutionClient) GetAccount(address *seleneCommon.Address, slots *[]common.Hash, tag seleneCommon.BlockTag) (Account, error) { //Account from execution/types.go
-	block := e.state.blocks[tag.Number]
+	block := e.state.GetBlock(tag)
 	// Error Handling
 	if block == nil {
 		return Account{}, errors.New("block was not found in state")
@@ -84,6 +85,7 @@ func (e *ExecutionClient) GetAccount(address *seleneCommon.Address, slots *[]com
 		accountProofBytes[i] = hexByte
 	}
 	// fmt.Printf("%v",accountProofBytes)
+	fmt.Println("State root and block number", hex.EncodeToString(block.StateRoot[:]), block.Number)
 	isValid, err := VerifyProof(accountProofBytes, block.StateRoot[:], accountPath, accountEncoded) 
 	if err != nil {
 		return Account{}, err

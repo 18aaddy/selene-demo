@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"encoding/hex"
 	// "encoding/json"
 	"fmt"
 	"math/big"
@@ -22,7 +23,7 @@ import (
 )
 
 func UpdateState(s *State, blockChan chan *common.Block) {
-	fmt.Println("Reached UpdateState")
+	// fmt.Println("Reached UpdateState")
 	for newBlock := range blockChan {
 		if newBlock == nil {
 			continue
@@ -38,7 +39,7 @@ func UpdateState(s *State, blockChan chan *common.Block) {
 
 func FetchBlocksFromRPC(ctx context.Context, rpcClient *RPCClient, lastFetchedBlock uint64, blockChan chan *common.Block) ([]*common.Block, error) {
 	var newBlocks []*common.Block
-	fmt.Println("Reached FetchBlocksFromRPC")
+	// fmt.Println("Reached FetchBlocksFromRPC")
 
 	for {
 		select {
@@ -62,7 +63,7 @@ func FetchBlocksFromRPC(ctx context.Context, rpcClient *RPCClient, lastFetchedBl
 
 func fetchNewBlocks(rpcClient *RPCClient, lastFetchedBlock uint64, blockChan chan *common.Block) ([]*common.Block, error) {
 	var blocks []*common.Block
-	fmt.Println("Reached fetchNewBlocks")
+	// fmt.Println("Reached fetchNewBlocks")
 	// Fetch blocks from the RPC
 	for i := lastFetchedBlock + 1; ; i++ {
 		block, err := rpcClient.GetBlockByNumber(common.BlockTag{Number: i}.String(), true)
@@ -106,11 +107,11 @@ func NewRPCClient(rpcURL string) (*RPCClient, error) {
 func (c *RPCClient) GetBlockByNumber(blockTag string, fullTx bool) (*common.Block, error) {
 	var block common.Block
 	var blockID interface{}
-	type Signature struct {
-		R hexutil.Big `json:"r"`
-		S hexutil.Big `json:"s"`
-		V hexutil.Big `json:"v"`
-	}
+	// type Signature struct {
+	// 	R hexutil.Big `json:"r"`
+	// 	S hexutil.Big `json:"s"`
+	// 	V hexutil.Big `json:"v"`
+	// }
 
 	var tempBlock struct {
 		Number           hexutil.Uint64
@@ -128,7 +129,7 @@ func (c *RPCClient) GetBlockByNumber(blockTag string, fullTx bool) (*common.Bloc
 		ReceiptsRoot     hexutil.Bytes
 		Sha3Uncles       hexutil.Bytes
 		Size             hexutil.Uint64
-		StateRoot        hexutil.Bytes
+		StateRoot        string
 		Timestamp        hexutil.Uint64
 		TotalDifficulty  hexutil.Big
 		Transactions     interface{}
@@ -177,7 +178,8 @@ func (c *RPCClient) GetBlockByNumber(blockTag string, fullTx bool) (*common.Bloc
 	block.ReceiptsRoot = [32]byte(tempBlock.ReceiptsRoot)
 	block.Sha3Uncles = [32]byte(tempBlock.Sha3Uncles)
 	block.Size = uint64(tempBlock.Size)
-	block.StateRoot = [32]byte(tempBlock.StateRoot)
+	root, _ := hex.DecodeString(tempBlock.StateRoot[2:])
+	block.StateRoot = [32]byte(root)
 	block.Timestamp = uint64(tempBlock.Timestamp)
 	block.TotalDifficulty = *uint256.MustFromBig(tempBlock.TotalDifficulty.ToInt())
 	block.TransactionsRoot = [32]byte(tempBlock.TransactionsRoot)
