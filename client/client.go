@@ -2491,7 +2491,31 @@ func rpcHandler(w http.ResponseWriter, r *http.Request, rpc *RpcInner) {
 			writeRPCResponse(w, req.ID, nil, err.Error())
 		}
 	case "eth_getBlockByNumber": //
-		resultChan := make(chan *seleneCommon.Block)
+		resultChan := make(chan struct {
+			Number           string
+			BaseFeePerGas    string
+			Difficulty       string
+			ExtraData        string
+			GasLimit         uint64
+			GasUsed          uint64
+			Hash             string
+			LogsBloom        string
+			Miner            string
+			MixHash          string
+			Nonce            string
+			ParentHash       string
+			ReceiptsRoot     string
+			Sha3Uncles       string
+			Size             uint64
+			StateRoot        string
+			Timestamp        uint64
+			TotalDifficulty  string
+			Transactions     seleneCommon.Transactions
+			TransactionsRoot string
+			Uncles           []string
+			BlobGasUsed      *uint64
+			ExcessBlobGas    *uint64
+		})
 		errorChan := make(chan error)
 
 		go func() {
@@ -2518,7 +2542,65 @@ func rpcHandler(w http.ResponseWriter, r *http.Request, rpc *RpcInner) {
 				errorChan <- err
 				return
 			}
-			resultChan <- result
+
+			// Helper function to convert [][32]byte to []string
+    convertUnclesToHex := func(uncles [][32]byte) []string {
+		hexUncles := make([]string, len(uncles))
+		for i, uncle := range uncles {
+			hexUncles[i] = hex.EncodeToString(uncle[:])
+		}
+		return hexUncles
+	}
+			tempResult := struct {
+				Number           string
+				BaseFeePerGas    string
+				Difficulty       string
+				ExtraData        string
+				GasLimit         uint64
+				GasUsed          uint64
+				Hash             string
+				LogsBloom        string
+				Miner            string
+				MixHash          string
+				Nonce            string
+				ParentHash       string
+				ReceiptsRoot     string
+				Sha3Uncles       string
+				Size             uint64
+				StateRoot        string
+				Timestamp        uint64
+				TotalDifficulty  string
+				Transactions     seleneCommon.Transactions
+				TransactionsRoot string
+				Uncles           []string
+				BlobGasUsed      *uint64
+				ExcessBlobGas    *uint64
+			}{
+				Number:           hexutil.EncodeUint64(result.Number),
+				BaseFeePerGas:    result.BaseFeePerGas.String(),
+				Difficulty:       result.Difficulty.String(),
+				ExtraData:        "0x" + hex.EncodeToString(result.ExtraData),
+				GasLimit:         result.GasLimit,
+				GasUsed:          result.GasUsed,
+				Hash:             "0x" + hex.EncodeToString(result.Hash[:]),
+				LogsBloom:        "0x" + hex.EncodeToString(result.LogsBloom),
+				Miner:            "0x" + hex.EncodeToString(result.Miner.Addr[:]),
+				MixHash:          "0x" + hex.EncodeToString(result.MixHash[:]),
+				Nonce:            result.Nonce,
+				ParentHash:       "0x" + hex.EncodeToString(result.ParentHash[:]),
+				ReceiptsRoot:     "0x" + hex.EncodeToString(result.ReceiptsRoot[:]),
+				Sha3Uncles:       "0x" + hex.EncodeToString(result.Sha3Uncles[:]),
+				Size:             result.Size,
+				StateRoot:        "0x" + hex.EncodeToString(result.StateRoot[:]),
+				Timestamp:        result.Timestamp,
+				TotalDifficulty:  result.TotalDifficulty.String(),
+				Transactions:     result.Transactions,
+				TransactionsRoot: "0x" + hex.EncodeToString(result.TransactionsRoot[:]),
+				Uncles:           convertUnclesToHex(result.Uncles),
+				BlobGasUsed:      result.BlobGasUsed,
+				ExcessBlobGas:    result.ExcessBlobGas,
+			}
+			resultChan <- tempResult
 		}()
 
 		select {
